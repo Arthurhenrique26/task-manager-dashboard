@@ -1,4 +1,5 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
+import { getTaskContext } from '@/lib/task-context'
 import { TimelineView } from '@/components/dashboard/timeline-view' // Importe o novo componente
 import { EmotionalCheckinPrompt } from '@/components/dashboard/emotional-checkin-prompt'
 import { Button } from '@/components/ui/button'
@@ -6,23 +7,34 @@ import { Plus } from 'lucide-react'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) return null
 
+  const taskContext = getTaskContext()
+
   // Buscar tarefas (com filtro para não mostrar concluídas muito antigas se quiser)
-  const { data: tasks } = await supabase
+  let tasksQuery = supabase
     .from('tasks')
     .select(`*, category:categories(*)`)
-    .eq('user_id', user.id)
     .order('due_date', { ascending: true }) // Importante para a timeline
+
+  if (taskContext.type === 'team') {
+    tasksQuery = tasksQuery.eq('team_id', taskContext.teamId)
+  } else {
+    tasksQuery = tasksQuery.eq('user_id', user.id).is('team_id', null)
+  }
+
+  const { data: tasks } = await tasksQuery
 
   // Check-in emocional logic (mantém igual)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
-  
+
   const { data: todayCheckin } = await supabase
     .from('emotional_checkins')
     .select('*')
@@ -45,7 +57,7 @@ export default async function DashboardPage() {
       </div>
 
       {!todayCheckin && <EmotionalCheckinPrompt />}
-      
+
       {/* A Nova Timeline Vertical */}
       <TimelineView tasks={tasks || []} />
     </div>

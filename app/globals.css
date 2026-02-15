@@ -1,45 +1,140 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Tema Padrão (Dark Focus por natureza) */
-    --background: 222 47% 6%; /* Slate-950 profundo */
-    --foreground: 210 40% 98%;
+    /* Base - Modo Claro (Invertido para manter consistência se alguém ativar, mas o foco é Dark) */
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 262 83% 58%; /* Roxo Focus */
+    --primary-foreground: 210 40% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 262 83% 58%;
+    --radius: 0.75rem;
+  }
 
-    --card: 222 47% 10%; /* Um pouco mais claro que o fundo */
-    --card-foreground: 210 40% 98%;
+  .dark {
+    /* TELA 1 & 4: Base Profunda */
+    --background: 240 10% 3.9%; /* Preto Carvão Profundo (#09090b) */
+    --foreground: 0 0% 98%; /* Branco Gelo (#fafafa) */
 
-    --popover: 222 47% 10%;
-    --popover-foreground: 210 40% 98%;
+    /* Painéis e Cards (Cinza Grafite / Antracite) */
+    --card: 240 10% 6%; /* Um pouco mais claro que o fundo (#121214) */
+    --card-foreground: 0 0% 98%;
 
-    --primary: 262 83% 58%; /* Violeta Neon Principal */
+    --popover: 240 10% 6%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Cores Semânticas (Baseadas nas Telas 1 e 2) */
+    --primary: 263 70% 50%; /* Roxo Vibrante (Criativo/Design) */
     --primary-foreground: 210 40% 98%;
 
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 3.7% 15.9%; /* Cinza Carvão */
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%; /* Cinza Claro (Descrições) */
 
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
 
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%; /* Vermelho Escuro (Urgência) */
+    --destructive-foreground: 0 0% 98%;
 
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 262 83% 58%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 263 70% 50%;
+  }
 
-    --radius: 0.75rem;
-    
-    /* Cores Semânticas (Neon) */
-    --status-todo: 215 20% 65%;
-    --status-progress: 199 89% 48%; /* Azul Sky */
-    --status-done: 160 84% 39%;     /* Esmeralda */
-    --status-urgent: 350 89% 60%;   /* Rose */
+  /* Temas de fundo do sistema */
+  .dark[data-bg='obsidian'] {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+  }
+
+  .dark[data-bg='midnight'] {
+    --background: 222 26% 6%;
+    --foreground: 0 0% 98%;
+  }
+
+  .dark[data-bg='nebula'] {
+    --background: 270 20% 7%;
+    --foreground: 0 0% 98%;
+  }
+
+  .dark[data-bg='slate'] {
+    --background: 215 18% 8%;
+    --foreground: 0 0% 98%;
+  }
+
+  .dark[data-bg='carbon'] {
+    --background: 0 0% 2.5%;
+    --foreground: 0 0% 98%;
+  }
+
+  /* Temas de superfícies / componentes */
+  .dark[data-surface='graphite'] {
+    --card: 240 10% 6%;
+    --popover: 240 10% 6%;
+    --secondary: 240 3.7% 15.9%;
+    --muted: 240 3.7% 15.9%;
+    --accent: 240 3.7% 15.9%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+  }
+
+  .dark[data-surface='steel'] {
+    --card: 223 16% 12%;
+    --popover: 223 16% 12%;
+    --secondary: 223 12% 18%;
+    --muted: 223 12% 18%;
+    --accent: 223 12% 18%;
+    --border: 223 12% 18%;
+    --input: 223 12% 18%;
+  }
+
+  .dark[data-surface='smoke'] {
+    --card: 240 7% 14%;
+    --popover: 240 7% 14%;
+    --secondary: 240 6% 20%;
+    --muted: 240 6% 20%;
+    --accent: 240 6% 20%;
+    --border: 240 6% 20%;
+    --input: 240 6% 20%;
+  }
+
+  .dark[data-surface='ink'] {
+    --card: 225 12% 10%;
+    --popover: 225 12% 10%;
+    --secondary: 225 10% 16%;
+    --muted: 225 10% 16%;
+    --accent: 225 10% 16%;
+    --border: 225 10% 16%;
+    --input: 225 10% 16%;
+  }
+
+  .dark[data-surface='frost'] {
+    --card: 220 12% 18%;
+    --popover: 220 12% 18%;
+    --secondary: 220 10% 24%;
+    --muted: 220 10% 24%;
+    --accent: 220 10% 24%;
+    --border: 220 10% 24%;
+    --input: 220 10% 24%;
   }
 }
 
@@ -52,23 +147,62 @@
   }
 }
 
-/* Utilitários de Alta Performance Visual */
+/* Utilitários de Cores Semânticas (Tela 1 e 2) */
 @layer utilities {
+  /* Rotina / Formal */
+  .bg-event-routine {
+    @apply bg-blue-900/50 border-blue-800 text-blue-100;
+  }
+  .text-event-routine {
+    @apply text-blue-400;
+  }
+
+  /* Atenção / Importante */
+  .bg-event-attention {
+    @apply bg-orange-900/50 border-orange-800 text-orange-100;
+  }
+  .text-event-attention {
+    @apply text-orange-400;
+  }
+
+  /* Urgência / Standups */
+  .bg-event-urgent {
+    @apply bg-red-900/50 border-red-800 text-red-100;
+  }
+  .text-event-urgent {
+    @apply text-red-400;
+  }
+
+  /* Confirmado / Estável / Ativo */
+  .bg-event-confirmed {
+    @apply bg-emerald-900/50 border-emerald-800 text-emerald-100;
+  }
+  .text-event-confirmed {
+    @apply text-emerald-400;
+  }
+
+  /* Criativo / Design */
+  .bg-event-creative {
+    @apply bg-violet-900/50 border-violet-800 text-violet-100;
+  }
+  .text-event-creative {
+    @apply text-violet-400;
+  }
+
+  /* Recorrente / Suave */
+  .bg-event-soft {
+    @apply bg-cyan-900/50 border-cyan-800 text-cyan-100;
+  }
+  .text-event-soft {
+    @apply text-cyan-400;
+  }
+
+  /* Efeitos Focus OS */
   .glass-panel {
-    @apply bg-card/60 backdrop-blur-md border border-white/5;
+    @apply bg-card/60 backdrop-blur-xl border border-white/5 shadow-2xl;
   }
-  
-  .neon-border-violet {
-    box-shadow: 0 0 5px theme('colors.violet.500/20'), 0 0 15px theme('colors.violet.500/10');
-  }
-  
-  /* Timeline Line Gradient */
-  .timeline-line-gradient {
-    background: linear-gradient(180deg, 
-      rgba(99, 102, 241, 0) 0%, 
-      rgba(99, 102, 241, 0.5) 15%, 
-      rgba(99, 102, 241, 0.5) 85%, 
-      rgba(99, 102, 241, 0) 100%
-    );
+
+  .neon-text {
+    @apply font-bold tracking-tight bg-gradient-to-r from-white via-white to-gray-400 bg-clip-text text-transparent;
   }
 }

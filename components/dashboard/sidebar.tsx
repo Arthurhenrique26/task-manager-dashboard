@@ -5,9 +5,23 @@ import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '@/lib/types'
+import type { TaskContextValue } from '@/lib/task-context-shared'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { useSidebar } from '@/components/dashboard/sidebar-context'
+import { useTaskContext } from '@/components/dashboard/task-context'
+import {
+  useAppearance,
+  backgroundThemes,
+  surfaceThemes,
+} from '@/components/appearance-provider'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   LayoutDashboard,
   CheckSquare,
@@ -22,6 +36,9 @@ import {
   X,
   Users,
   Flame,
+  Layers,
+  Palette,
+  Loader2,
 } from 'lucide-react'
 
 interface DashboardSidebarProps {
@@ -44,40 +61,42 @@ const navigation = [
 export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
   const pathname = usePathname()
   const { isOpen, close } = useSidebar()
+  const {
+    value: taskContextValue,
+    setValue: setTaskContextValue,
+    teams,
+    isPending: isContextPending,
+  } = useTaskContext()
+  const { background, surface, setBackground, setSurface } = useAppearance()
   const [isHovered, setIsHovered] = useState(false)
 
   // CORREÇÃO DE HIDRATAÇÃO: Estado para controlar Mobile
-  // Começa como false para evitar mismatch com o servidor
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    // Check inicial
-    const checkMobile = () => window.innerWidth < 1024
-    setIsMobile(checkMobile())
+    const media = window.matchMedia('(max-width: 1023px)')
+    const updateIsMobile = () => setIsMobile(media.matches)
 
-    // Listener para resize
-    const handleResize = () => setIsMobile(checkMobile())
-    window.addEventListener('resize', handleResize)
+    updateIsMobile()
+    media.addEventListener('change', updateIsMobile)
 
-    return () => window.removeEventListener('resize', handleResize)
+    return () => media.removeEventListener('change', updateIsMobile)
   }, [])
 
-  // Reseta hover ao mudar para mobile para evitar estados presos
   useEffect(() => {
     if (isMobile) {
       setIsHovered(false)
     }
   }, [isMobile])
 
-  // Lógica de Visibilidade:
-  // - Mobile: Abre APENAS se isOpen for true (clique no burguer)
-  // - Desktop: Abre se isOpen for true OU se o mouse estiver em cima (Hover)
+  // Abre se estiver clicado (isOpen) OU se o mouse estiver em cima (isHovered e não for mobile)
+  // No mobile, hover não existe/não deve abrir sozinho
   const isVisible = isOpen || (!isMobile && isHovered)
+  const hasTeams = teams.length > 0
 
   return (
     <>
       {/* 1. ZONA DE GATILHO (HOVER) - Apenas Desktop */}
-      {/* Faixa invisível na esquerda para detectar o mouse se aproximando */}
       {!isMobile && (
         <div
           className="fixed inset-y-0 left-0 w-6 z-40 bg-transparent"
@@ -88,9 +107,8 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
       {/* 2. OVERLAY ESCURO (Apenas Mobile quando aberto) */}
       {isOpen && isMobile && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
           onClick={close}
-          aria-hidden="true"
         />
       )}
 
@@ -112,8 +130,7 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
             </div>
             <span className="text-xl font-bold tracking-tight text-white">Focus OS</span>
           </div>
-          
-          {/* Botão fechar (visível apenas no mobile quando aberto) */}
+          {/* Botão fechar (visível apenas se aberto via clique) */}
           {isOpen && (
             <Button
               variant="ghost"
@@ -129,12 +146,120 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
         {/* Scroll Area Principal */}
         <div className="flex-1 overflow-y-auto py-6 px-4 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {/* Widget Streak */}
-          <div className="mb-6 bg-white/5 rounded-xl p-3 border border-white/10 flex items-center justify-between shadow-sm">
+          <div className="mb-6 bg-white/5 rounded-xl p-3 border border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Flame className="h-4 w-4 text-orange-500 animate-pulse fill-orange-500/20" />
+              <Flame className="h-4 w-4 text-orange-500 animate-pulse" />
               <span className="text-sm font-medium text-white">12 dias</span>
             </div>
-            <span className="text-xs text-muted-foreground font-medium">Sequência</span>
+            <span className="text-xs text-muted-foreground">Sequência</span>
+          </div>
+
+          <div className="mb-6 space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Contexto
+                </span>
+                {isContextPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                ) : (
+                  <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </div>
+              <div className="mt-3">
+                <Select
+                  value={taskContextValue}
+                  onValueChange={(value) =>
+                    setTaskContextValue(value as TaskContextValue)
+                  }
+                  disabled={isContextPending}
+                >
+                  <SelectTrigger className="w-full bg-black/20 border-white/10">
+                    <SelectValue placeholder="Selecione o contexto" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card/95 border-white/10">
+                    <SelectItem value="personal">Minhas tarefas</SelectItem>
+                    {teams.map((team) => (
+                      <SelectItem key={team.id} value={`team:${team.id}`}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!hasTeams && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Você ainda não participa de equipes.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Aparência
+                </span>
+                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+
+              <div className="mt-3 space-y-3">
+                <div className="space-y-2">
+                  <span className="text-xs text-muted-foreground">
+                    Fundo do sistema
+                  </span>
+                  <div className="grid grid-cols-5 gap-2">
+                    {backgroundThemes.map((theme) => {
+                      const isActive = theme.value === background
+                      return (
+                        <button
+                          key={theme.value}
+                          type="button"
+                          aria-label={theme.label}
+                          title={theme.label}
+                          aria-pressed={isActive}
+                          onClick={() => setBackground(theme.value)}
+                          className={cn(
+                            'h-7 w-7 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet',
+                            theme.className,
+                            isActive
+                              ? 'ring-2 ring-brand-violet border-white/40'
+                              : 'border-white/10 hover:border-white/30',
+                          )}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-xs text-muted-foreground">
+                    Componentes
+                  </span>
+                  <div className="grid grid-cols-5 gap-2">
+                    {surfaceThemes.map((theme) => {
+                      const isActive = theme.value === surface
+                      return (
+                        <button
+                          key={theme.value}
+                          type="button"
+                          aria-label={theme.label}
+                          title={theme.label}
+                          aria-pressed={isActive}
+                          onClick={() => setSurface(theme.value)}
+                          className={cn(
+                            'h-7 w-7 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-violet',
+                            theme.className,
+                            isActive
+                              ? 'ring-2 ring-brand-violet border-white/40'
+                              : 'border-white/10 hover:border-white/30',
+                          )}
+                        />
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <nav className="flex flex-1 flex-col space-y-1" aria-label="Navegação principal">
@@ -149,20 +274,21 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
                   key={item.name}
                   href={item.href}
                   onClick={() => {
-                    // Fecha a sidebar ao clicar em um link APENAS no mobile
                     if (isMobile) close()
                   }}
                 >
                   <Button
                     variant="ghost"
                     className={cn(
-                      'w-full justify-start text-sm font-medium mb-1 transition-all duration-200',
+                      'w-full justify-start text-sm font-medium mb-1 transition-all',
                       isActive
                         ? 'bg-brand-violet/10 text-brand-violet border-l-2 border-brand-violet rounded-l-none'
                         : 'text-muted-foreground hover:text-white hover:bg-white/5',
                     )}
                   >
-                    <item.icon className={cn('mr-3 h-5 w-5 transition-colors', isActive ? 'text-brand-violet' : 'text-muted-foreground group-hover:text-white')} />
+                    <item.icon
+                      className={cn('mr-3 h-5 w-5', isActive && 'text-brand-violet')}
+                    />
                     {item.name}
                   </Button>
                 </Link>
@@ -172,7 +298,7 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
         </div>
 
         {/* Footer Fixo */}
-        <div className="p-4 border-t border-white/5 bg-background/95 backdrop-blur-xl">
+        <div className="p-4 border-t border-white/5 bg-background/95">
           <Link
             href="/dashboard/settings"
             onClick={() => {
@@ -181,7 +307,7 @@ export function DashboardSidebar({ user, profile }: DashboardSidebarProps) {
           >
             <Button
               variant="ghost"
-              className="w-full justify-start text-muted-foreground hover:text-white hover:bg-white/5 transition-colors"
+              className="w-full justify-start text-muted-foreground hover:text-white"
             >
               <Settings className="mr-3 h-5 w-5" />
               Ajustes

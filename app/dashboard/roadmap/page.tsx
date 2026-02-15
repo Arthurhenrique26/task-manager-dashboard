@@ -1,20 +1,32 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
+import { getTaskContext } from '@/lib/task-context'
 import { RoadmapView } from '@/components/dashboard/roadmap-view'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Info } from 'lucide-react'
 
 export default async function RoadmapPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) return null
 
+  const taskContext = getTaskContext()
+
   // Buscar tarefas e categorias
-  const { data: tasks } = await supabase
+  let tasksQuery = supabase
     .from('tasks')
     .select(`*, category:categories(*)`)
-    .eq('user_id', user.id)
     .order('due_date', { ascending: true })
+
+  if (taskContext.type === 'team') {
+    tasksQuery = tasksQuery.eq('team_id', taskContext.teamId)
+  } else {
+    tasksQuery = tasksQuery.eq('user_id', user.id).is('team_id', null)
+  }
+
+  const { data: tasks } = await tasksQuery
 
   const { data: categories } = await supabase
     .from('categories')
@@ -39,10 +51,7 @@ export default async function RoadmapPage() {
           </AlertDescription>
         </Alert>
       ) : (
-        <RoadmapView 
-          tasks={tasks || []} 
-          categories={categories || []} 
-        />
+        <RoadmapView tasks={tasks || []} categories={categories || []} />
       )}
     </div>
   )

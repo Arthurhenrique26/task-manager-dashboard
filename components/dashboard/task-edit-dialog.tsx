@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React from "react"
 
@@ -65,7 +65,7 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (!task || !title.trim()) return
 
     startTransition(async () => {
@@ -74,7 +74,7 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
         description: description.trim() || null,
         status,
         priority,
-        category_id: categoryId || null,
+        category_id: categoryId === 'none' ? null : categoryId,
         due_date: dueDate?.toISOString() || null,
         estimated_minutes: estimatedMinutes ? parseInt(estimatedMinutes) : null,
       })
@@ -164,8 +164,8 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
                   {categories.map((cat) => (
                     <SelectItem key={cat.id} value={cat.id}>
                       <div className="flex items-center gap-2">
-                        <div 
-                          className="w-2 h-2 rounded-full" 
+                        <div
+                          className="w-2 h-2 rounded-full"
                           style={{ backgroundColor: cat.color }}
                         />
                         {cat.name}
@@ -196,11 +196,13 @@ export function TaskEditDialog({ task, categories, open, onOpenChange }: TaskEdi
                   variant="outline"
                   className={cn(
                     'w-full justify-start text-left font-normal',
-                    !dueDate && 'text-muted-foreground'
+                    !dueDate && 'text-muted-foreground',
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {dueDate ? format(dueDate, 'PPP', { locale: ptBR }) : 'Selecionar data'}
+                  {dueDate
+                    ? format(dueDate, 'PPP', { locale: ptBR })
+                    : 'Selecionar data'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">

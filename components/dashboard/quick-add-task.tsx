@@ -1,10 +1,11 @@
-'use client'
+﻿'use client'
 
-import React from "react"
+import React from 'react'
 
 import { useState, useTransition } from 'react'
 import type { Category, TaskPriority } from '@/lib/types'
 import { createTask } from '@/lib/actions/tasks'
+import { useTaskContext } from '@/components/dashboard/task-context'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -33,6 +34,7 @@ interface QuickAddTaskProps {
 }
 
 export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
+  const { context } = useTaskContext()
   const [title, setTitle] = useState('')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [categoryId, setCategoryId] = useState<string>('none') // Updated default value
@@ -42,14 +44,18 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
+
     if (!title.trim()) return
+
+    const teamId = context.type === 'team' ? context.teamId : undefined
+    const resolvedCategoryId = categoryId === 'none' ? undefined : categoryId
 
     startTransition(async () => {
       const result = await createTask({
         title: title.trim(),
         priority,
-        category_id: categoryId || undefined,
+        category_id: resolvedCategoryId,
+        team_id: teamId,
         due_date: dueDate?.toISOString(),
         parent_id: parentId,
       })
@@ -122,8 +128,8 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         <div className="flex items-center gap-2">
-                          <div 
-                            className="w-2 h-2 rounded-full" 
+                          <div
+                            className="w-2 h-2 rounded-full"
                             style={{ backgroundColor: cat.color }}
                           />
                           {cat.name}
@@ -142,11 +148,13 @@ export function QuickAddTask({ categories, parentId }: QuickAddTaskProps) {
                     size="sm"
                     className={cn(
                       'h-8 justify-start text-left font-normal',
-                      !dueDate && 'text-muted-foreground'
+                      !dueDate && 'text-muted-foreground',
                     )}
                   >
                     <CalendarIcon className="mr-1 h-3 w-3" />
-                    {dueDate ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR }) : 'Data'}
+                    {dueDate
+                      ? format(dueDate, 'dd/MM/yyyy', { locale: ptBR })
+                      : 'Data'}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">

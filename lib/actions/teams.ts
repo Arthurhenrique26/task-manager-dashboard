@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
+// Definindo os campos possíveis para erro
 type TeamField = 'name' | 'description' | 'code'
 
 export type TeamActionState = {
@@ -17,13 +18,12 @@ const createTeamSchema = z.object({
     .string()
     .trim()
     .min(3, 'O nome precisa ter pelo menos 3 caracteres.')
-    .max(60, 'O nome pode ter no máximo 60 caracteres.')
-    .transform((value) => value.replace(/\s+/g, ' ')),
+    .max(60, 'O nome pode ter no máximo 60 caracteres.'),
   description: z
     .string()
     .trim()
     .max(140, 'A descrição pode ter no máximo 140 caracteres.')
-    .transform((value) => value.replace(/\s+/g, ' ')),
+    .optional(),
 })
 
 const joinTeamSchema = z.object({
@@ -32,7 +32,7 @@ const joinTeamSchema = z.object({
     .trim()
     .length(6, 'O código precisa ter 6 caracteres.')
     .regex(/^[A-Za-z0-9]+$/, 'Use apenas letras e números.')
-    .transform((value) => value.toUpperCase()),
+    .transform((val) => val.toUpperCase()),
 })
 
 function getText(formData: FormData, key: string) {
@@ -40,162 +40,141 @@ function getText(formData: FormData, key: string) {
   return typeof value === 'string' ? value : ''
 }
 
-function toFieldErrors(error: z.ZodError) {
+// Helper para converter erros do Zod para nosso formato
+function toFieldErrors(error: z.ZodError): Partial<Record<TeamField, string>> {
   const fieldErrors: Partial<Record<TeamField, string>> = {}
-
-  for (const issue of error.issues) {
-    const field = issue.path[0]
-    if (field === 'name' || field === 'description' || field === 'code') {
-      if (!fieldErrors[field]) {
-        fieldErrors[field] = issue.message
-      }
+  
+  error.issues.forEach((issue) => {
+    const path = issue.path[0] as TeamField
+    if (path) {
+      fieldErrors[path] = issue.message
     }
-  }
-
+  })
+  
   return fieldErrors
 }
 
-const genericErrorMessage =
-  'Não foi possível concluir a operação agora. Tente novamente.'
-
 export async function createTeam(
   _prevState: TeamActionState,
-  formData: FormData,
+  formData: FormData
 ): Promise<TeamActionState> {
   const supabase = await createClient()
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (userError || !user) {
-    return {
-      status: 'error',
-      message: 'Você precisa estar autenticado para criar um esquadrão.',
-    }
+  if (!user) {
+    return { status: 'error', message: 'Você precisa estar logado.' }
   }
 
-  const parsed = createTeamSchema.safeParse({
+  // Validação
+  const rawData = {
     name: getText(formData, 'name'),
     description: getText(formData, 'description'),
-  })
+  }
 
-  if (!parsed.success) {
+  const result = createTeamSchema.safeParse(rawData)
+
+  if (!result.success) {
     return {
       status: 'error',
-      message: 'Revise os campos destacados.',
-      fieldErrors: toFieldErrors(parsed.error),
+      message: 'Verifique os campos abaixo.',
+      fieldErrors: toFieldErrors(result.error),
     }
   }
 
-  const { name, description } = parsed.data
-  const normalizedDescription = description.length > 0 ? description : null
+  const { name, description } = result.data
 
+  // 1. Criar Time
   const { data: team, error: teamError } = await supabase
     .from('teams')
     .insert({
       name,
-      description: normalizedDescription,
-      owner_id: user.id,
+      description: description || null,
+      owner_id: user.id
     })
     .select('id')
     .single()
 
-  if (teamError || !team) {
-    console.error('Erro ao criar esquadrão:', teamError)
-    return { status: 'error', message: genericErrorMessage }
+  if (teamError) {
+    console.error('Erro ao criar time:', teamError)
+    return { status: 'error', message: 'Erro ao criar equipe. Tente novamente.' }
   }
 
-  const { error: memberError } = await supabase.from('team_members').insert({
-    team_id: team.id,
-    user_id: user.id,
-    role: 'owner',
-  })
+  // 2. Vincular Owner (A policy deve permitir isso agora)
+  const { error: memberError } = await supabase
+    .from('team_members')
+    .insert({
+      team_id: team.id,
+      user_id: user.id,
+      role: 'owner'
+    })
 
   if (memberError) {
-    console.error('Erro ao vincular líder:', memberError)
-    await supabase.from('teams').delete().eq('id', team.id)
-    return { status: 'error', message: genericErrorMessage }
+    console.error('Erro ao vincular owner:', memberError)
+    // Se falhar aqui, o time fica órfão. Ideal seria deletar, mas o RLS pode impedir.
+    return { status: 'error', message: 'Equipe criada, mas houve erro ao vincular membro.' }
   }
 
   revalidatePath('/dashboard/teams')
-  return { status: 'success' }
+  return { status: 'success', message: 'Equipe criada com sucesso!' }
 }
 
 export async function joinTeam(
   _prevState: TeamActionState,
-  formData: FormData,
+  formData: FormData
 ): Promise<TeamActionState> {
   const supabase = await createClient()
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (userError || !user) {
+  if (!user) {
+    return { status: 'error', message: 'Você precisa estar logado.' }
+  }
+
+  const rawCode = getText(formData, 'code')
+  const result = joinTeamSchema.safeParse({ code: rawCode })
+
+  if (!result.success) {
     return {
       status: 'error',
-      message: 'Você precisa estar autenticado para entrar em um esquadrão.',
+      message: 'Código inválido.',
+      fieldErrors: toFieldErrors(result.error),
     }
   }
 
-  const parsed = joinTeamSchema.safeParse({
-    code: getText(formData, 'code'),
-  })
+  const code = result.data.code
 
-  if (!parsed.success) {
-    return {
-      status: 'error',
-      message: 'Revise o código informado.',
-      fieldErrors: toFieldErrors(parsed.error),
-    }
+  // 1. Buscar time pelo código (RPC seguro)
+  const { data: teamData, error: rpcError } = await supabase
+    .rpc('get_team_by_code', { code_input: code })
+
+  if (rpcError || !teamData) {
+    return { status: 'error', message: 'Equipe não encontrada ou código inválido.' }
   }
 
-  const { code } = parsed.data
-
-  const { data: teamResult, error: teamError } = await supabase.rpc(
-    'get_team_by_code',
-    { code_input: code },
-  )
-
-  if (teamError) {
-    console.error('Erro ao buscar esquadrão:', teamError)
-    return { status: 'error', message: 'Código inválido ou esquadrão não encontrado.' }
+  // O RPC pode retornar um array ou objeto dependendo da versão do driver/pg
+  // Vamos garantir que temos um objeto com ID
+  const team = Array.isArray(teamData) ? teamData[0] : teamData
+  
+  if (!team || !team.id) {
+     return { status: 'error', message: 'Equipe inválida.' }
   }
 
-  const team = Array.isArray(teamResult) ? teamResult[0] : teamResult
-
-  if (!team?.id) {
-    return { status: 'error', message: 'Código inválido ou esquadrão não encontrado.' }
-  }
-
-  const { data: existingMember, error: existingMemberError } = await supabase
+  // 2. Entrar no time
+  const { error: joinError } = await supabase
     .from('team_members')
-    .select('id')
-    .eq('team_id', team.id)
-    .eq('user_id', user.id)
-    .maybeSingle()
-
-  if (existingMemberError) {
-    console.error('Erro ao validar membro existente:', existingMemberError)
-    return { status: 'error', message: genericErrorMessage }
-  }
-
-  if (existingMember) {
-    return { status: 'error', message: 'Você já faz parte deste esquadrão.' }
-  }
-
-  const { error: joinError } = await supabase.from('team_members').insert({
-    team_id: team.id,
-    user_id: user.id,
-    role: 'member',
-  })
+    .insert({
+      team_id: team.id,
+      user_id: user.id,
+      role: 'member'
+    })
 
   if (joinError) {
-    console.error('Erro ao entrar no esquadrão:', joinError)
-    return { status: 'error', message: genericErrorMessage }
+    if (joinError.code === '23505') { // Código Postgres para Unique Violation
+      return { status: 'error', message: 'Você já faz parte desta equipe.' }
+    }
+    console.error('Erro ao entrar:', joinError)
+    return { status: 'error', message: 'Erro ao entrar na equipe.' }
   }
 
   revalidatePath('/dashboard/teams')
-  return { status: 'success' }
+  return { status: 'success', message: `Bem-vindo à equipe ${team.name}!` }
 }

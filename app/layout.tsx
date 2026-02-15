@@ -1,9 +1,9 @@
-import React from "react"
+﻿import React from 'react'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { ThemeProvider } from '@/components/theme-provider'
-import { AccentColorProvider } from '@/components/accent-color-provider'
+import { AppearanceProvider } from '@/components/appearance-provider'
 
 import './globals.css'
 
@@ -28,8 +28,10 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange
         >
-          {children}
-          <Toaster richColors position="top-right" />
+          <AppearanceProvider>
+            {children}
+            <Toaster richColors position="top-right" />
+          </AppearanceProvider>
         </ThemeProvider>
       </body>
     </html>

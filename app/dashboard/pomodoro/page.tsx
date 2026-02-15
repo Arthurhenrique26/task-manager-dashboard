@@ -1,24 +1,38 @@
-import { createClient } from '@/lib/supabase/server'
+﻿import { createClient } from '@/lib/supabase/server'
+import { getTaskContext } from '@/lib/task-context'
 import { PomodoroView } from '@/components/dashboard/pomodoro-view'
 
 export default async function PomodoroPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) return null
 
+  const taskContext = getTaskContext()
+
   // Get incomplete tasks for selection
-  const { data: tasks } = await supabase
+  let tasksQuery = supabase
     .from('tasks')
-    .select(`
+    .select(
+      `
       *,
       category:categories(*)
-    `)
-    .eq('user_id', user.id)
+    `,
+    )
     .neq('status', 'done')
     .is('parent_id', null)
     .order('priority', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (taskContext.type === 'team') {
+    tasksQuery = tasksQuery.eq('team_id', taskContext.teamId)
+  } else {
+    tasksQuery = tasksQuery.eq('user_id', user.id).is('team_id', null)
+  }
+
+  const { data: tasks } = await tasksQuery
 
   // Get profile for pomodoro settings
   const { data: profile } = await supabase
@@ -30,7 +44,7 @@ export default async function PomodoroPage() {
   // Get today's sessions
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  
+
   const { data: todaySessions } = await supabase
     .from('pomodoro_sessions')
     .select('*')
@@ -39,10 +53,6 @@ export default async function PomodoroPage() {
     .order('completed_at', { ascending: false })
 
   return (
-    <PomodoroView 
-      tasks={tasks || []} 
-      profile={profile}
-      todaySessions={todaySessions || []}
-    />
+    <PomodoroView tasks={tasks || []} profile={profile} todaySessions={todaySessions || []} />
   )
 }

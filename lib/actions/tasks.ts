@@ -1,4 +1,4 @@
-'use server'
+﻿'use server'
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
@@ -13,9 +13,12 @@ export async function createTask(data: {
   estimated_minutes?: number
   category_id?: string
   parent_id?: string
+  team_id?: string | null
 }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return { error: 'Unauthorized' }
@@ -25,6 +28,7 @@ export async function createTask(data: {
     .from('tasks')
     .insert({
       user_id: user.id,
+      team_id: data.team_id ?? null,
       title: data.title,
       description: data.description || null,
       status: data.status || 'todo',
@@ -45,20 +49,25 @@ export async function createTask(data: {
   return { data: task }
 }
 
-export async function updateTask(id: string, data: Partial<{
-  title: string
-  description: string | null
-  status: TaskStatus
-  priority: TaskPriority
-  due_date: string | null
-  estimated_minutes: number | null
-  actual_minutes: number
-  category_id: string | null
-  position: number
-  completed_at: string | null
-}>) {
+export async function updateTask(
+  id: string,
+  data: Partial<{
+    title: string
+    description: string | null
+    status: TaskStatus
+    priority: TaskPriority
+    due_date: string | null
+    estimated_minutes: number | null
+    actual_minutes: number
+    category_id: string | null
+    position: number
+    completed_at: string | null
+  }>,
+) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return { error: 'Unauthorized' }
@@ -78,7 +87,6 @@ export async function updateTask(id: string, data: Partial<{
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('user_id', user.id)
     .select()
     .single()
 
@@ -92,17 +100,15 @@ export async function updateTask(id: string, data: Partial<{
 
 export async function deleteTask(id: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return { error: 'Unauthorized' }
   }
 
-  const { error } = await supabase
-    .from('tasks')
-    .delete()
-    .eq('id', id)
-    .eq('user_id', user.id)
+  const { error } = await supabase.from('tasks').delete().eq('id', id)
 
   if (error) {
     return { error: error.message }
@@ -118,9 +124,12 @@ export async function getTasks(filters?: {
   category_id?: string
   is_today?: boolean
   search?: string
+  team_id?: string
 }) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return { error: 'Unauthorized', data: [] }
@@ -128,15 +137,22 @@ export async function getTasks(filters?: {
 
   let query = supabase
     .from('tasks')
-    .select(`
+    .select(
+      `
       *,
       category:categories(*),
       subtasks:tasks!parent_id(*)
-    `)
-    .eq('user_id', user.id)
+    `,
+    )
     .is('parent_id', null)
     .order('position', { ascending: true })
     .order('created_at', { ascending: false })
+
+  if (filters?.team_id) {
+    query = query.eq('team_id', filters.team_id)
+  } else {
+    query = query.eq('user_id', user.id).is('team_id', null)
+  }
 
   if (filters?.status && filters.status.length > 0) {
     query = query.in('status', filters.status)
@@ -155,10 +171,8 @@ export async function getTasks(filters?: {
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
-    
-    query = query
-      .gte('due_date', today.toISOString())
-      .lt('due_date', tomorrow.toISOString())
+
+    query = query.gte('due_date', today.toISOString()).lt('due_date', tomorrow.toISOString())
   }
 
   if (filters?.search) {
@@ -174,9 +188,11 @@ export async function getTasks(filters?: {
   return { data: data as Task[] }
 }
 
-export async function getTasksForToday() {
+export async function getTasksForToday(teamId?: string) {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     return { error: 'Unauthorized', data: [] }
@@ -187,18 +203,29 @@ export async function getTasksForToday() {
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('tasks')
-    .select(`
+    .select(
+      `
       *,
       category:categories(*)
-    `)
-    .eq('user_id', user.id)
+    `,
+    )
     .is('parent_id', null)
-    .or(`due_date.gte.${today.toISOString()},due_date.lt.${tomorrow.toISOString()},and(status.neq.done,due_date.is.null)`)
+    .or(
+      `due_date.gte.${today.toISOString()},due_date.lt.${tomorrow.toISOString()},and(status.neq.done,due_date.is.null)`,
+    )
     .order('status', { ascending: true })
     .order('priority', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (teamId) {
+    query = query.eq('team_id', teamId)
+  } else {
+    query = query.eq('user_id', user.id).is('team_id', null)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return { error: error.message, data: [] }
